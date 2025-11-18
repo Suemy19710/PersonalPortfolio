@@ -6,7 +6,7 @@ const projectSchema = new mongoose.Schema({
     enum: ['Group Project', 'Individual Project', 'Freelance', 'Academic']
   },
   
-  project_title: {
+  title: {
     type: String,
     required: true,
     trim: true
@@ -89,7 +89,9 @@ const projectSchema = new mongoose.Schema({
   projectUrl: {
     type: String
   },
-  
+  githubUrl:{
+    type: String
+  },
   status: {
     type: String,
     enum: ['In Progress', 'Completed', 'On Hold'],

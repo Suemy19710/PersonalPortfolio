@@ -32,7 +32,7 @@ router.post('/', upload.array('image', 10), async (req, res) => {
     try{
         const projectData ={
             projectType: req.body.projectType,
-            project_title: req.body.project_title,
+            title: req.body.project_title,
             role: req.body.role,
             projectSector: req.body.projectSector,
             tools: req.body.tools ? req.body.tools.split(',').map(tool => tool.trim()) : [],
@@ -56,6 +56,7 @@ router.post('/', upload.array('image', 10), async (req, res) => {
             startDate: req.body.startDate,  
             endDate: req.body.endDate, 
             projectUrl: req.body.projectUrl,
+            githubUrl: req.body.githubUrl,
             status: req.body.status,
             timestamps: true    
         };

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Upload, X as XIcon } from 'lucide-react';
 
 export default function AdminPanel() {
   const [projects, setProjects] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     projectType: 'Individual',
@@ -19,9 +20,15 @@ export default function AdminPanel() {
     projectUrl: '',
     githubUrl: '',
     status: 'Completed',
+    featured: false
+  });
+  const [uploadedImages, setUploadedImages] = useState({
+    context: [],
+    targetCustomer: [],
+    goal: [],
+    effortAndContributions: []
   });
 
-  // Simulated API calls - Replace with actual API endpoints
   const API_URL = 'http://localhost:5000/api/projects';
 
   useEffect(() => {
@@ -30,28 +37,18 @@ export default function AdminPanel() {
 
   const fetchProjects = async () => {
     try {
-      // Simulated data - replace with actual fetch
-      const mockProjects = [
-        {
-          _id: '1',
-          title: 'Traffic Pattern HCMC Predict',
-          projectType: 'Individual',
-          role: 'Full-stack Developer',
-          projectSector: 'AI/ML',
-          tools: ['Python', 'TensorFlow'],
-          techStack: ['React', 'Node.js'],
-          status: 'Completed',
-          featured: true
-        }
-      ];
-      setProjects(mockProjects);
-      
-      // Actual API call (uncomment when backend is ready):
-      // const response = await fetch(API_URL);
-      // const data = await response.json();
-      // setProjects(data);
+      setLoading(true);
+      const response = await fetch(API_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setProjects(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      alert('Error fetching projects: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,41 +60,150 @@ export default function AdminPanel() {
     }));
   };
 
+  const handleImageUpload = (e, section) => {
+    const files = Array.from(e.target.files);
+    
+    const validFiles = files.filter(file => {
+      const isValidType = file.type.startsWith('image/');
+      const isValidSize = file.size <= 5 * 1024 * 1024;
+      
+      if (!isValidType) {
+        alert('Please upload only image files');
+        return false;
+      }
+      if (!isValidSize) {
+        alert('File size must be less than 5MB');
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setUploadedImages(prev => ({
+        ...prev,
+        [section]: [...prev[section], ...validFiles]
+      }));
+    }
+
+    e.target.value = '';
+  };
+
+  const removeImage = (section, index) => {
+    setUploadedImages(prev => ({
+      ...prev,
+      [section]: prev[section].filter((_, i) => i !== index)
+    }));
+  };
+
+  // Function to upload images to the server
+  const uploadImagesToServer = async (files) => {
+    const uploadedUrls = [];
+    
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      try {
+        const response = await fetch('http://localhost:5000/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        uploadedUrls.push(result.url);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        // Continue with other images even if one fails
+        uploadedUrls.push(`placeholder-${file.name}`);
+      }
+    }
+    
+    return uploadedUrls;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     
     try {
+      // Upload all images first
+      const contextImages = await uploadImagesToServer(uploadedImages.context);
+      const targetCustomerImages = await uploadImagesToServer(uploadedImages.targetCustomer);
+      const goalImages = await uploadImagesToServer(uploadedImages.goal);
+      const effortImages = await uploadImagesToServer(uploadedImages.effortAndContributions);
+
+      // Prepare the data for API - ensure proper format
       const projectData = {
-        ...formData,
-        tools: formData.tools.split(',').map(t => t.trim()),
-        techStack: formData.techStack.split(',').map(t => t.trim()),
-        context: { description: formData.contextDescription, pictures: [] },
-        targetCustomer: { description: formData.targetCustomerDescription, pictures: [] },
-        goal: { description: formData.goalDescription, pictures: [] }
+        title: formData.title,
+        projectType: formData.projectType,
+        role: formData.role,
+        projectSector: formData.projectSector,
+        // Convert comma-separated strings to arrays, but only if they contain values
+        tools: formData.tools ? formData.tools.split(',').map(t => t.trim()).filter(t => t) : [],
+        techStack: formData.techStack ? formData.techStack.split(',').map(t => t.trim()).filter(t => t) : [],
+        context: { 
+          description: formData.contextDescription, 
+          pictures: contextImages
+        },
+        targetCustomer: { 
+          description: formData.targetCustomerDescription, 
+          pictures: targetCustomerImages
+        },
+        goal: { 
+          description: formData.goalDescription, 
+          pictures: goalImages
+        },
+        effortAndContributions: formData.effortAndContributions,
+        projectUrl: formData.projectUrl,
+        githubUrl: formData.githubUrl,
+        status: formData.status,
+        featured: formData.featured
       };
 
+      console.log('Sending project data:', projectData);
+
+      let response;
       if (editingProject) {
         // Update existing project
-        console.log('Updating project:', projectData);
-        // await fetch(`${API_URL}/${editingProject._id}`, {
-        //   method: 'PUT',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(projectData)
-        // });
+        response = await fetch(`${API_URL}/${editingProject._id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(projectData)
+        });
       } else {
         // Create new project
-        console.log('Creating project:', projectData);
-        // await fetch(API_URL, {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(projectData)
-        // });
+        response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(projectData)
+        });
       }
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(editingProject ? 'Project updated:' : 'Project created:', result);
+      
       resetForm();
       fetchProjects();
+      alert(`Project ${editingProject ? 'updated' : 'created'} successfully!`);
+      
     } catch (error) {
       console.error('Error saving project:', error);
+      alert('Error saving project: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,8 +214,9 @@ export default function AdminPanel() {
       projectType: project.projectType,
       role: project.role,
       projectSector: project.projectSector,
-      tools: project.tools?.join(', ') || '',
-      techStack: project.techStack?.join(', ') || '',
+      // Convert arrays back to comma-separated strings for the form
+      tools: Array.isArray(project.tools) ? project.tools.join(', ') : project.tools || '',
+      techStack: Array.isArray(project.techStack) ? project.techStack.join(', ') : project.techStack || '',
       contextDescription: project.context?.description || '',
       targetCustomerDescription: project.targetCustomer?.description || '',
       goalDescription: project.goal?.description || '',
@@ -119,17 +226,37 @@ export default function AdminPanel() {
       status: project.status,
       featured: project.featured
     });
+    
+    setUploadedImages({
+      context: [],
+      targetCustomer: [],
+      goal: [],
+      effortAndContributions: []
+    });
+    
     setIsFormOpen(true);
   };
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       try {
-        console.log('Deleting project:', id);
-        // await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+        setLoading(true);
+        const response = await fetch(`${API_URL}/${id}`, { 
+          method: 'DELETE' 
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        console.log('Project deleted successfully');
         fetchProjects();
+        alert('Project deleted successfully!');
       } catch (error) {
         console.error('Error deleting project:', error);
+        alert('Error deleting project: ' + error.message);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -151,9 +278,77 @@ export default function AdminPanel() {
       status: 'Completed',
       featured: false
     });
+    setUploadedImages({
+      context: [],
+      targetCustomer: [],
+      goal: [],
+      effortAndContributions: []
+    });
     setEditingProject(null);
     setIsFormOpen(false);
   };
+
+  const ImageUploadSection = ({ title, section, description, value, onChange }) => (
+    <div className="space-y-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {title} *
+      </label>
+      <textarea
+        name={description}
+        value={value}
+        onChange={onChange}
+        required
+        rows="3"
+        disabled={loading}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+        placeholder={`Describe the ${title.toLowerCase()}...`}
+      />
+      
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+        <label className="flex flex-col items-center justify-center cursor-pointer">
+          <Upload className="w-8 h-8 text-gray-400 mb-2" />
+          <span className="text-sm text-gray-600">Click to upload images</span>
+          <span className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</span>
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={(e) => handleImageUpload(e, section)}
+            className="hidden"
+            disabled={loading}
+          />
+        </label>
+      </div>
+
+      {uploadedImages[section].length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Uploaded Images:</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {uploadedImages[section].map((file, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt={`Preview ${index + 1}`}
+                  className="w-full h-20 object-cover rounded-lg border"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(section, index)}
+                  disabled={loading}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+                <div className="text-xs text-gray-500 truncate mt-1">
+                  {file.name}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -164,7 +359,8 @@ export default function AdminPanel() {
             <h1 className="text-3xl font-bold text-gray-800">Project Admin Panel</h1>
             <button
               onClick={() => setIsFormOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+              disabled={loading}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
               Add New Project
@@ -172,15 +368,26 @@ export default function AdminPanel() {
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6 text-center">
+            <div className="text-lg font-medium text-gray-700">Loading...</div>
+          </div>
+        )}
+
         {/* Form Modal */}
         {isFormOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8 max-h-[90vh] overflow-hidden">
               <div className="p-6 border-b flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-800">
                   {editingProject ? 'Edit Project' : 'Add New Project'}
                 </h2>
-                <button onClick={resetForm} className="text-gray-500 hover:text-gray-700">
+                <button 
+                  onClick={resetForm} 
+                  disabled={loading}
+                  className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                >
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -198,7 +405,8 @@ export default function AdminPanel() {
                       value={formData.title}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
@@ -211,7 +419,8 @@ export default function AdminPanel() {
                       value={formData.projectType}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     >
                       <option value="Individual">Individual</option>
                       <option value="Team">Team</option>
@@ -230,8 +439,9 @@ export default function AdminPanel() {
                       value={formData.role}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                       placeholder="e.g., Full-stack Developer"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
@@ -245,8 +455,9 @@ export default function AdminPanel() {
                       value={formData.projectSector}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                       placeholder="e.g., AI/ML, Web Development"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
@@ -259,8 +470,9 @@ export default function AdminPanel() {
                       name="tools"
                       value={formData.tools}
                       onChange={handleInputChange}
+                      disabled={loading}
                       placeholder="Python, Figma, Postman"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
@@ -273,59 +485,42 @@ export default function AdminPanel() {
                       name="techStack"
                       value={formData.techStack}
                       onChange={handleInputChange}
+                      disabled={loading}
                       placeholder="React, Node.js, MongoDB"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
                 </div>
 
                 {/* Context */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Context *
-                  </label>
-                  <textarea
-                    name="contextDescription"
-                    value={formData.contextDescription}
-                    onChange={handleInputChange}
-                    required
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+                <ImageUploadSection
+                  title="Context"
+                  section="context"
+                  description="contextDescription"
+                  value={formData.contextDescription}
+                  onChange={handleInputChange}
+                />
 
                 {/* Target Customer */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Target Customer *
-                  </label>
-                  <textarea
-                    name="targetCustomerDescription"
-                    value={formData.targetCustomerDescription}
-                    onChange={handleInputChange}
-                    required
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+                <ImageUploadSection
+                  title="Target Customer"
+                  section="targetCustomer"
+                  description="targetCustomerDescription"
+                  value={formData.targetCustomerDescription}
+                  onChange={handleInputChange}
+                />
 
                 {/* Goal */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Goal *
-                  </label>
-                  <textarea
-                    name="goalDescription"
-                    value={formData.goalDescription}
-                    onChange={handleInputChange}
-                    required
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+                <ImageUploadSection
+                  title="Goal"
+                  section="goal"
+                  description="goalDescription"
+                  value={formData.goalDescription}
+                  onChange={handleInputChange}
+                />
 
                 {/* Effort & Contributions */}
-                <div>
+                <div className="space-y-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Effort & Contributions *
                   </label>
@@ -335,8 +530,53 @@ export default function AdminPanel() {
                     onChange={handleInputChange}
                     required
                     rows="4"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                   />
+                  
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <label className="flex flex-col items-center justify-center cursor-pointer">
+                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-600">Click to upload images for effort & contributions</span>
+                      <span className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'effortAndContributions')}
+                        className="hidden"
+                        disabled={loading}
+                      />
+                    </label>
+                  </div>
+
+                  {uploadedImages.effortAndContributions.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Uploaded Images:</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {uploadedImages.effortAndContributions.map((file, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-20 object-cover rounded-lg border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('effortAndContributions', index)}
+                              disabled={loading}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                            >
+                              <XIcon className="w-3 h-3" />
+                            </button>
+                            <div className="text-xs text-gray-500 truncate mt-1">
+                              {file.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* URLs */}
@@ -350,8 +590,9 @@ export default function AdminPanel() {
                       name="projectUrl"
                       value={formData.projectUrl}
                       onChange={handleInputChange}
+                      disabled={loading}
                       placeholder="https://project-demo.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
@@ -364,8 +605,9 @@ export default function AdminPanel() {
                       name="githubUrl"
                       value={formData.githubUrl}
                       onChange={handleInputChange}
+                      disabled={loading}
                       placeholder="https://github.com/username/repo"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     />
                   </div>
                 </div>
@@ -380,7 +622,8 @@ export default function AdminPanel() {
                       name="status"
                       value={formData.status}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     >
                       <option value="Completed">Completed</option>
                       <option value="In Progress">In Progress</option>
@@ -394,7 +637,8 @@ export default function AdminPanel() {
                       name="featured"
                       checked={formData.featured}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      disabled={loading}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
                     />
                     <label className="ml-2 text-sm font-medium text-gray-700">
                       Featured Project
@@ -407,16 +651,18 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                    disabled={loading}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                   >
                     <Save className="w-4 h-4" />
-                    {editingProject ? 'Update Project' : 'Create Project'}
+                    {loading ? 'Saving...' : (editingProject ? 'Update Project' : 'Create Project')}
                   </button>
                 </div>
               </form>
@@ -426,79 +672,85 @@ export default function AdminPanel() {
 
         {/* Projects List */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Featured
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {projects.map(project => (
-                  <tr key={project._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{project.title}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{project.projectType}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{project.role}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        project.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                        project.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        project.featured ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {project.featured ? 'Yes' : 'No'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(project)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        <Edit2 className="w-4 h-4 inline" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(project._id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="w-4 h-4 inline" />
-                      </button>
-                    </td>
+          {loading ? (
+            <div className="text-center py-12 text-gray-500">Loading projects...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Featured
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {projects.map(project => (
+                    <tr key={project._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{project.title}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{project.projectType}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{project.role}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          project.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                          project.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {project.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          project.featured ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {project.featured ? 'Yes' : 'No'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => handleEdit(project)}
+                          disabled={loading}
+                          className="text-blue-600 hover:text-blue-900 mr-4 disabled:opacity-50"
+                        >
+                          <Edit2 className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(project._id)}
+                          disabled={loading}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {projects.length === 0 && (
+          {!loading && projects.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               No projects yet. Click "Add New Project" to create your first project.
             </div>

@@ -8,7 +8,7 @@ export default function Skills(){
         <div className="relative mt-24">
           <h3 className="text-3xl italic text-slate-700 mb-8 " style={{ fontFamily: 'Baskervville, serif' }}>Skills</h3>
             <div 
-                className="absolute text-center ml-4 bg-[#405879]" 
+                className="absolute text-center ml-4 bg-[#334155]" 
                 style={{ 
                 width: '100px', 
                 height: '7px', 
@@ -18,7 +18,7 @@ export default function Skills(){
             ></div>        
           <p className="text-slate-600 mb-8 text-2xl" style={{ fontFamily: 'Baskervville, serif' }}>The skills, tools, technologies I'm learning and working with projects:</p>
           
-          <div className="bg-slate-600/80 backdrop-blur-sm rounded-3xl p-12">
+          <div className="bg-slate-700/90 backdrop-blur-sm rounded-3xl p-12">
             <div className="max-w-4xl mx-auto">
                 <div className="flex justify-around items-center flex-wrap gap-8 mb-10">
                 {/* JavaScript */}

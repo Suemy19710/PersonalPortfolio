@@ -6,7 +6,7 @@ export default function AboutMe() {
           <h2 className="text-8xl font-bold text-slate-700/30 text-center right-0" style={{ fontFamily: 'Baskervville, serif' }}>About me</h2>
           <h3 className="text-3xl italic text-slate-700 top-12 absolute " style={{ fontFamily: 'Baskervville, serif' }}>About me</h3>
             <div 
-                className="absolute text-center mr-9 bg-[#405879]" 
+                className="absolute text-center mr-9 bg-[#334155]" 
                 style={{ 
                 width: '133px', 
                 height: '7px', 

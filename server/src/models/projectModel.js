@@ -3,7 +3,7 @@ const projectSchema = new mongoose.Schema({
   projectType: {
     type: String,
     required: true,
-    enum: ['Group Project', 'Individual Project', 'Freelance', 'Academic']
+    enum: ['Group', 'Individual', 'Freelance', 'Academic']
   },
   
   title: {
@@ -73,8 +73,15 @@ const projectSchema = new mongoose.Schema({
   
   // Effort & Contributions
   effortAndContributions: {
-    type: String,
-    required: true
+    description: {
+      type: String,
+      required: true
+    }, 
+    pictures: [{
+      url: String,
+      caption: String
+    }]
+   
   },
   
   // Additional fields

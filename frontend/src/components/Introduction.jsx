@@ -6,11 +6,11 @@ export default function Introduction() {
     <section className="max-w-7xl mx-auto px-8 py-16">
       <div className="relative">
         {/* Background Text - Name */}
-        <p className="text-center ml-10 text-slate-600 text-2xl mb-1 mf-8" style={{ fontFamily: 'Baskervville, serif', fontStyle: 'italic' }}>
+        <p className="text-right mr-40 text-slate-700 text-2xl mf-8" style={{ fontFamily: 'Baskervville, serif', fontStyle: 'italic' }}>
             Hello, I'm
         </p>
         <div className="text-center mb-8">
-          <h1 className="text-9xl font-bold text-slate-600/80 mb-4" style={{ fontFamily: 'Baskervville, serif' }}>
+          <h1 className="text-9xl font-bold text-slate-700 mb-4" style={{ fontFamily: 'Baskervville, serif' }}>
             Linh Nguyen
           </h1>
         </div>
@@ -19,16 +19,17 @@ export default function Introduction() {
         <div className="flex justify-center  items-center relative -mt-24 mb-8">
           <div className="flex items-center gap-15 max-w-6xl w-full">
              {/* Left Side Content */}
-            <div className="flex-1 text-left gap-15 flex flex-col  justify-between h-80">
+            <div className="flex-1 text-right gap-15 flex flex-col  justify-between h-80">
               <p 
-                className="text-slate-600  text-3xl mb-4"
+                className="text-slate-700  text-3xl mt-12"
                 style={{ fontFamily: 'Baskervville, serif', fontStyle: 'italic' }}
               >
                 Full-stack Developer Student<br />
                 AI, Machine learning, data
               </p>
               <button 
-                className="text-slate-700 text-2xl mr-4 hover:text-slate-900 transition self-start mb-8"
+                className="text-slate-700 text-2xl mr-4 hover:text-slate-800 transition self-middle mr-3"
+
                 style={{ fontFamily: 'Baskervville, serif', fontStyle: 'italic' }}
               >
                 MyResume →
@@ -48,8 +49,8 @@ export default function Introduction() {
               >
                 <path 
                   d="M686 417H0.12427C0.12427 338.193 -16.7593 0 343.062 0C686 0 686 338.193 686 417Z" 
-                  fill="#405879" 
-                  fillOpacity="0.5"
+                  fill="#334155" 
+                  fillOpacity="1"
                 />
               </svg>
               
@@ -66,14 +67,14 @@ export default function Introduction() {
             <div className="flex-1 text-right space-y-8 flex flex-col justify-between h-40">
               {/* Social Handle */}
               <div 
-                className="text-slate-600 text-2xl ml-8"
+                className="text-slate-700 text-start text-2xl ml-8"
                 style={{ fontFamily: 'Baskervville, serif', fontStyle: 'italic' }}
               >
-                @Fortys
+                @Fontys
               </div>
               
               {/* Location Badge */}
-              <div className="inline-block mt-4">
+              <div className="inline-block mt-4 ml-20">
                 <div className="flex items-center gap-2 text-sm">
                   <div className="text-left">
                     <p className="text-slate-700 font-medium" style={{ fontFamily: 'Baskervville, serif' }}>

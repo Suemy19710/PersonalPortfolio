@@ -1,9 +1,6 @@
 import React from 'react';
-import Introduction from '../components/Introduction';
-import AboutMe from '../components/AboutMe';  
-import Skills from '../components/Skills';   
 
-const Homepage = () => {
+const Project = () => {
     return(
         <div className="min-h-screen bg-gradient-to-r from-[#DABCBC] to-[#EBE2E2]">
             <nav className="pt-8 px-4">
@@ -16,12 +13,11 @@ const Homepage = () => {
                 </div>
                 </div>
             </nav>
-
-            <Introduction />
-            <AboutMe /> 
-            <Skills />  
+            
+            <section className=""></section>
+      
 
         </div>
     )
 }
-export default Homepage;    
+export default Project;    

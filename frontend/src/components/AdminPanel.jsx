@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Upload, X as XIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Upload } from 'lucide-react';
 
 export default function AdminPanel() {
   const [projects, setProjects] = useState([]);
@@ -16,7 +16,7 @@ export default function AdminPanel() {
     contextDescription: '',
     targetCustomerDescription: '',
     goalDescription: '',
-    effortAndContributions: '',
+    effortAndContributionsDescription: '',
     projectUrl: '',
     githubUrl: '',
     status: 'Completed',
@@ -95,70 +95,71 @@ export default function AdminPanel() {
     }));
   };
 
-  // Function to upload images to the server
   const uploadImagesToServer = async (files) => {
-    const uploadedUrls = [];
+  const uploadedUrls = [];
+  
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('image', file);
     
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('image', file);
+    try {
+      const response = await fetch('http://localhost:5000/api/upload', {  
+        method: 'POST',
+        body: formData,
+      });
       
-      try {
-        const response = await fetch('http://localhost:5000/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Upload failed: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        uploadedUrls.push(result.url);
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        // Continue with other images even if one fails
-        uploadedUrls.push(`placeholder-${file.name}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
       }
+      
+      const result = await response.json();
+      uploadedUrls.push(result.url);  // This will be /uploads/filename.jpg
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      uploadedUrls.push(`/uploads/${file.name}`); 
     }
-    
-    return uploadedUrls;
-  };
+  }
+  
+  return uploadedUrls;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-      // Upload all images first
       const contextImages = await uploadImagesToServer(uploadedImages.context);
       const targetCustomerImages = await uploadImagesToServer(uploadedImages.targetCustomer);
       const goalImages = await uploadImagesToServer(uploadedImages.goal);
       const effortImages = await uploadImagesToServer(uploadedImages.effortAndContributions);
+      const slug = generateSlug(formData.title);  
+      const formatPictures = (urls) => urls.map(url => ({ url, caption: '' }));
 
-      // Prepare the data for API - ensure proper format
       const projectData = {
         title: formData.title,
         projectType: formData.projectType,
         role: formData.role,
         projectSector: formData.projectSector,
-        // Convert comma-separated strings to arrays, but only if they contain values
         tools: formData.tools ? formData.tools.split(',').map(t => t.trim()).filter(t => t) : [],
         techStack: formData.techStack ? formData.techStack.split(',').map(t => t.trim()).filter(t => t) : [],
         context: { 
           description: formData.contextDescription, 
-          pictures: contextImages
+          pictures: formatPictures(contextImages)
         },
         targetCustomer: { 
           description: formData.targetCustomerDescription, 
-          pictures: targetCustomerImages
+          pictures: formatPictures(targetCustomerImages)
         },
         goal: { 
           description: formData.goalDescription, 
-          pictures: goalImages
+          pictures: formatPictures(goalImages)
         },
-        effortAndContributions: formData.effortAndContributions,
-        projectUrl: formData.projectUrl,
+        effortAndContributions: {
+          description: formData.effortAndContributionsDescription,
+          pictures: formatPictures(effortImages)
+        },
+        projectUrl: formData.projectUrl.trim() || `http://localhost:3000/projects/${slug}`,
         githubUrl: formData.githubUrl,
         status: formData.status,
         featured: formData.featured
@@ -168,7 +169,6 @@ export default function AdminPanel() {
 
       let response;
       if (editingProject) {
-        // Update existing project
         response = await fetch(`${API_URL}/${editingProject._id}`, {
           method: 'PUT',
           headers: { 
@@ -177,7 +177,6 @@ export default function AdminPanel() {
           body: JSON.stringify(projectData)
         });
       } else {
-        // Create new project
         response = await fetch(API_URL, {
           method: 'POST',
           headers: { 
@@ -207,36 +206,35 @@ export default function AdminPanel() {
     }
   };
 
-  const handleEdit = (project) => {
-    setEditingProject(project);
-    setFormData({
-      title: project.title,
-      projectType: project.projectType,
-      role: project.role,
-      projectSector: project.projectSector,
-      // Convert arrays back to comma-separated strings for the form
-      tools: Array.isArray(project.tools) ? project.tools.join(', ') : project.tools || '',
-      techStack: Array.isArray(project.techStack) ? project.techStack.join(', ') : project.techStack || '',
-      contextDescription: project.context?.description || '',
-      targetCustomerDescription: project.targetCustomer?.description || '',
-      goalDescription: project.goal?.description || '',
-      effortAndContributions: project.effortAndContributions || '',
-      projectUrl: project.projectUrl || '',
-      githubUrl: project.githubUrl || '',
-      status: project.status,
-      featured: project.featured
-    });
-    
-    setUploadedImages({
-      context: [],
-      targetCustomer: [],
-      goal: [],
-      effortAndContributions: []
-    });
-    
-    setIsFormOpen(true);
-  };
+ const handleEdit = (project) => {
+  setEditingProject(project);
+  setFormData({
+    title: project.title || '',
+    projectType: project.projectType || 'Individual',
+    role: project.role || '',
+    projectSector: project.projectSector || '',
+    tools: Array.isArray(project.tools) ? project.tools.join(', ') : '',
+    techStack: Array.isArray(project.techStack) ? project.techStack.join(', ') : '',
+    contextDescription: project.context?.description || '',
+    targetCustomerDescription: project.targetCustomer?.description || '',
+    goalDescription: project.goal?.description || '',
+    effortAndContributionsDescription: project.effortAndContributions?.description || '',
+    projectUrl: project.projectUrl || '',
+    githubUrl: project.githubUrl || '',
+    status: project.status || 'Completed',
+    featured: project.featured || false
+  });
 
+  // THIS IS THE KEY: Show existing images from DB
+  setUploadedImages({
+    context: project.context?.pictures || [],
+    targetCustomer: project.targetCustomer?.pictures || [],
+    goal: project.goal?.pictures || [],
+    effortAndContributions: project.effortAndContributions?.pictures || []
+  });
+
+  setIsFormOpen(true);
+};
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       try {
@@ -261,6 +259,14 @@ export default function AdminPanel() {
     }
   };
 
+  const generateSlug = (title) => {
+    return title
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')       
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
   const resetForm = () => {
     setFormData({
       title: '',
@@ -272,7 +278,7 @@ export default function AdminPanel() {
       contextDescription: '',
       targetCustomerDescription: '',
       goalDescription: '',
-      effortAndContributions: '',
+      effortAndContributionsDescription: '',
       projectUrl: '',
       githubUrl: '',
       status: 'Completed',
@@ -320,30 +326,37 @@ export default function AdminPanel() {
         </label>
       </div>
 
-      {uploadedImages[section].length > 0 && (
+     {uploadedImages[section].length > 0 && (
         <div className="mt-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2">Uploaded Images:</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {uploadedImages[section].map((file, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-20 object-cover rounded-lg border"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(section, index)}
-                  disabled={loading}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                >
-                  <XIcon className="w-3 h-3" />
-                </button>
-                <div className="text-xs text-gray-500 truncate mt-1">
-                  {file.name}
+            {uploadedImages[section].map((img, index) => {
+              // img can be File object (new) or { url: "..." } (existing)
+              const isFile = img instanceof File;
+              const src = isFile ? URL.createObjectURL(img) : `http://localhost:5000${img.url}`;
+
+              return (
+                <div key={index} className="relative group">
+                  <img
+                    src={src}
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-20 object-cover rounded-lg border"
+                    onError={() => console.log('Failed to load:', src)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(section, index)}
+                    disabled={loading}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  <div className="text-xs text-gray-500 truncate mt-1">
+                    {isFile ? img.name : img.url.split('/').pop()}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -353,7 +366,6 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-800">Project Admin Panel</h1>
@@ -368,14 +380,12 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Loading State */}
         {loading && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6 text-center">
             <div className="text-lg font-medium text-gray-700">Loading...</div>
           </div>
         )}
 
-        {/* Form Modal */}
         {isFormOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8 max-h-[90vh] overflow-hidden">
@@ -392,8 +402,7 @@ export default function AdminPanel() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                {/* Basic Information */}
+              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -423,7 +432,7 @@ export default function AdminPanel() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                     >
                       <option value="Individual">Individual</option>
-                      <option value="Team">Team</option>
+                      <option value="Group">Group</option>
                       <option value="Freelance">Freelance</option>
                       <option value="Academic">Academic</option>
                     </select>
@@ -492,7 +501,6 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Context */}
                 <ImageUploadSection
                   title="Context"
                   section="context"
@@ -501,7 +509,6 @@ export default function AdminPanel() {
                   onChange={handleInputChange}
                 />
 
-                {/* Target Customer */}
                 <ImageUploadSection
                   title="Target Customer"
                   section="targetCustomer"
@@ -510,7 +517,6 @@ export default function AdminPanel() {
                   onChange={handleInputChange}
                 />
 
-                {/* Goal */}
                 <ImageUploadSection
                   title="Goal"
                   section="goal"
@@ -519,14 +525,13 @@ export default function AdminPanel() {
                   onChange={handleInputChange}
                 />
 
-                {/* Effort & Contributions */}
                 <div className="space-y-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Effort & Contributions *
                   </label>
                   <textarea
-                    name="effortAndContributions"
-                    value={formData.effortAndContributions}
+                    name="effortAndContributionsDescription"
+                    value={formData.effortAndContributionsDescription}
                     onChange={handleInputChange}
                     required
                     rows="4"
@@ -567,7 +572,7 @@ export default function AdminPanel() {
                               disabled={loading}
                               className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                             >
-                              <XIcon className="w-3 h-3" />
+                              <X className="w-3 h-3" />
                             </button>
                             <div className="text-xs text-gray-500 truncate mt-1">
                               {file.name}
@@ -579,7 +584,6 @@ export default function AdminPanel() {
                   )}
                 </div>
 
-                {/* URLs */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -591,11 +595,17 @@ export default function AdminPanel() {
                       value={formData.projectUrl}
                       onChange={handleInputChange}
                       disabled={loading}
-                      placeholder="https://project-demo.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                      placeholder="https://yoursite.com/projects/my-project"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     />
+                    {!formData.projectUrl && formData.title && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Auto-generated: <span className="font-medium">
+                          http://localhost:3000/projects/{generateSlug(formData.title)}
+                        </span>
+                      </p>
+                    )}
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       GitHub URL
@@ -612,7 +622,6 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Status & Featured */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -646,7 +655,6 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Form Actions */}
                 <div className="flex justify-end gap-3 pt-4 border-t">
                   <button
                     type="button"
@@ -657,7 +665,7 @@ export default function AdminPanel() {
                     Cancel
                   </button>
                   <button
-                    type="submit"
+                    onClick={handleSubmit}
                     disabled={loading}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                   >
@@ -665,12 +673,11 @@ export default function AdminPanel() {
                     {loading ? 'Saving...' : (editingProject ? 'Update Project' : 'Create Project')}
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Projects List */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {loading ? (
             <div className="text-center py-12 text-gray-500">Loading projects...</div>
